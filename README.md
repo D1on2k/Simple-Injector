@@ -1,4 +1,4 @@
-# Injector 
+# DInjector 
 
 A process Injector built with ImGui(dx3d11) Win32 API and C++17.
 
