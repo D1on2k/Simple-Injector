@@ -1,3 +1,5 @@
+// Injector.cpp
+
 #include <windows.h>
 #include <stdio.h>
 #include <iostream>
@@ -6,126 +8,40 @@
 #include "imgui_impl_dx11.h"
 #include <d3d11.h>
 #include <tchar.h>
+#include <tlhelp32.h>
+#include <vector>
+#include <algorithm>
+#include <string>
+#include <shellapi.h>
+#include "Injector.h"
 
 using namespace std;
 using namespace ImGui;
 
-const char*k = "[+]";
-const char*e = "[-]";
-const char*i = "[*]";
-
-// Data
-static ID3D11Device*            g_pd3dDevice = nullptr;
-static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
-static IDXGISwapChain*          g_pSwapChain = nullptr;
-static bool                     g_SwapChainOccluded = false;
-static UINT                     g_ResizeWidth = 0, g_ResizeHeight = 0;
-static ID3D11RenderTargetView*  g_mainRenderTargetView = nullptr;
-
-bool Test = false;
-bool DInjector_active = true;
-bool CreateDeviceD3D(HWND hWnd);
-void CleanupDeviceD3D();
-void CreateRenderTarget();
-void CleanupRenderTarget();
-
-DWORD PID, TID = 0; // Because of warning
+wchar_t dllPath[MAX_PATH] = L"Please Select A DLL File";
+DWORD PID = 0, TID = 0;
 LPVOID rBuffer = NULL;
 HMODULE hKernel32 = NULL;
-HANDLE hprocess, hThread = NULL;
+HANDLE hprocess = NULL, hThread = NULL;
+bool Test = false;
+char IAMTIRED[256] = "";
 
-LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+const char* k = "[+]";
+const char* e = "[-]";
+const char* i = "[*]";
 
-// Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+ID3D11Device* g_pd3dDevice = nullptr;
+ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
+IDXGISwapChain* g_pSwapChain = nullptr;
+bool                     g_SwapChainOccluded = false;
+UINT                     g_ResizeWidth = 0, g_ResizeHeight = 0;
+ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
 
-wchar_t dllPath[MAX_PATH] = L"C:\\Users\\Denmp\\Projects\\DInjector\\Injector.dll";
-size_t dllPathSize = sizeof(dllPath);
-
-class backend
-{
-public:
-    int main(int argc, char* argv[])
-    {
-        if (argc < 2)
-        {
-            
-            printf("%s usage: %s", e, argv[0]);
-            return 1;
-        }
-
-        PID = atoi(argv[1]);
-
-        printf("%s Usage: %s", e, argv[0]);
-
-        hprocess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, PID);
-
-        if (hprocess == NULL)
-        {
-            printf("%s Failed to get a handle to the process, error: %ld", e, GetLastError()); 
-            return 1;
-        }
-
-        printf("%s Got a hadnle to the process (%ld)\n\\---0x%\n", k,PID, hprocess);
-        
-        rBuffer = VirtualAllocEx(hprocess, NULL, dllPathSize, (MEM_COMMIT | MEM_RESERVE), PAGE_READWRITE);
-        
-        printf("%s Allocated buffer to process memory w/ PAGE_READWRITE permissions\n", k);
-
-        if (rBuffer == NULL)
-        {
-            printf("%s Couldn't create rBuffer, Error: %ld", e, GetLastError());
-            return 1;
-        }
-        
-        WriteProcessMemory(hprocess, rBuffer, dllPath, dllPathSize, NULL);
-
-        printf("%s wrote [%S] to process memory\n", k, dllPath);
-
-        hKernel32 = GetModuleHandleW(L"Kernel32");
-
-        if (hKernel32 == NULL)
-        {
-            printf("% Failed to get a handle to Kernel32.dll, error: %ld", e, GetLastError());
-            CloseHandle(hprocess);
-
-            return 1;
-        }
-
-        printf("%s got a handle to Kernel32.dll\n\\---0x%p\n", k, hKernel32);
-
-        LPTHREAD_START_ROUTINE startFinding = (LPTHREAD_START_ROUTINE)GetProcAddress(hKernel32, "LoadLibraryW"); // Give a handle to the module and get back the address
-        printf("%s Got the address of LoadLibraryW()\n\\---0x%p\n", k, startFinding);
-
-        hThread = CreateRemoteThread(hprocess, NULL, 0, startFinding, rBuffer, 0, &TID);
-
-        if (hThread == NULL)
-        {
-            printf("% Failed to get a handle to Thread, error: %ld", e, GetLastError());
-            CloseHandle(hprocess);
-            return 1;
-        }
-
-        printf("%s Got a handle to the newly created thread (%ld)\n\\---0x%p\n", k, TID, hThread);
-        printf("%s Waiting for the thread to finish execution\n", i);
-
-        WaitForSingleObject(hThread, INFINITE);
-
-        printf("%s Thread finished executing, Successfully\n", k);
-
-        CloseHandle(hThread);
-        CloseHandle(hprocess);
-
-        return EXIT_SUCCESS;
-    }
-
-};
-
-class FrontEnd
+class Injector
 {
 public:
 
-    void Window()
+    void window()
     {
         // Make process DPI aware and obtain main monitor scale
         ImGui_ImplWin32_EnableDpiAwareness();
@@ -152,12 +68,11 @@ public:
         // Setup ImGui context
         IMGUI_CHECKVERSION();
         CreateContext();
-        ImGuiIO& io = GetIO(); (void)io;
+        ImGuiIO& io = GetIO();
+        io.Fonts->AddFontDefault();
+
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-
-        // Setup ImGui style I can use Light() as well
-        //StyleColorsDark();
 
         // Setup scaling
         ImGuiStyle& style = GetStyle();
@@ -170,6 +85,7 @@ public:
 
         // Main Window loop
         bool done = false;
+        
         while (!done)
         {
             MSG msg;
@@ -180,6 +96,7 @@ public:
                 if (msg.message == WM_QUIT)
                     done = true;
             }
+            
             if (done)
                 break;
 
@@ -189,6 +106,7 @@ public:
                 ::Sleep(10);
                 continue;
             }
+            
             g_SwapChainOccluded = false;
 
             // Handle window resize
@@ -199,6 +117,7 @@ public:
                 g_ResizeWidth = g_ResizeHeight = 0;
                 CreateRenderTarget();
             }
+            
             // Change Background Color
             ImVec4 clear_color = ImVec4(0.239f, 0.239f, 0.239f, 1.000f); // Pro Tip use: https://htmlcolorcodes.com/color-picker/ 
                                                                          // to get rgb values and devide it with 255 to get float values
@@ -222,10 +141,67 @@ public:
                 Text("Select Process: "); // Display some text (you can use a format strings too)
                 PopFont();
 
+                SetCursorPos(ImVec2(200.0f, 100.0f));
+                PushItemWidth(200);
+                
+                if (InputText("(Select Ur Runing Process)", IAMTIRED, sizeof(IAMTIRED)))
+                {
+                    wchar_t tempWide[MAX_PATH];
+                    mbstowcs(tempWide, IAMTIRED, MAX_PATH);
+                    
+                    PID = GetProcIdByName(tempWide);
+                }
+                
+                SetCursorPos(ImVec2(50.0f, 145.5f));
+
+                ImVec2 pos = GetCursorScreenPos();
+                
+                Separator();
+                
                 SetCursorPos(ImVec2(50.0f, 175.0f));
-                PushFont(NULL, 16.0f);
-                Text("DLL Path: ");
-                PopFont();
+                
+                BeginGroup();
+                
+                    PushFont(NULL, 16.0f);
+                    Text("DLL Path: ");
+                    PopFont();
+                    SameLine();
+                    
+                    float idk = GetContentRegionAvail().x - 75.0f;
+                    
+                    PushTextWrapPos(GetCursorPosX() + idk);
+                        TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), " %ls", dllPath);
+                    
+                    SameLine();
+                    
+                    if (Button("Browse"))
+                    {
+                        OPENFILENAMEW EFN;
+                        wchar_t szFile[MAX_PATH] = { 0 };
+                        ZeroMemory(&EFN, sizeof(EFN));
+
+                        EFN.lStructSize = sizeof(EFN);
+                        EFN.lpstrFilter = L"DLL Files\0*.dll\0All\0*.*\0";
+                        EFN.lpstrFile = szFile;
+                        EFN.nMaxFile = MAX_PATH;
+                        EFN.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+                        if (GetOpenFileNameW(&EFN)) 
+                        {
+                            wcscpy_s(dllPath, szFile);
+                        }   
+                    }
+                
+                EndGroup();
+                
+                SetCursorPos(ImVec2(130.0f, 165.0f));
+                
+
+                SetCursorPos(ImVec2(50.0f, 200.0f));
+
+                ImVec2 pos1 = GetCursorScreenPos();
+                
+                Separator();
 
                 SetCursorPos(ImVec2(50.0f, 250.0f));
                 PushFont(NULL, 16.0f);
@@ -236,13 +212,69 @@ public:
                 SetCursorPos(ImVec2(150.0f, 400.0f)); // Set Possision
                 if (Button("Inject", ImVec2(200.0f, 50.0f))) // Name and Resize The Button
                 {
-                    // Do something
+                    // Add a error handle if the user doesnt load a dll file
+                    if (PID == 0) 
+                    {
+                        printf("%s Please enter a file!\n", e);
+                    }
+                    
+                    else 
+                    {
+                        // Handle the targeted process
+                        hprocess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, PID);
+                        if (hprocess == NULL) 
+                        {
+                            printf("%s Failed to open process! %ld\n", e, GetLastError());
+                        }
+                        
+                        else 
+                        {
+                            // Allocate memory for the dll path 
+                            size_t pathBytes = (wcslen(dllPath) + 1) * sizeof(wchar_t);
+                            rBuffer = VirtualAllocEx(hprocess, NULL, pathBytes, (MEM_COMMIT | MEM_RESERVE), PAGE_READWRITE);
+
+                            if (rBuffer != NULL) 
+                            {
+                                // write the dll path to memory 
+                                WriteProcessMemory(hprocess, rBuffer, dllPath, pathBytes, NULL);
+
+                                // search for load library w 
+                                hKernel32 = GetModuleHandleW(L"Kernel32");
+                                LPTHREAD_START_ROUTINE loadLibAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hKernel32, "LoadLibraryW");
+
+                                // create a thread to load the dll 
+                                hThread = CreateRemoteThread(hprocess, NULL, 0, loadLibAddr, rBuffer, 0, &TID);
+
+                                if (hThread != NULL) 
+                                {
+                                    printf("%s Successfully created thread! Please wait for execution\n", k);
+    
+                                    WaitForSingleObject(hThread, 500); 
+                                    
+                                    CloseHandle(hThread);
+                                    printf("%s Injection completed successfully!\n", k);
+                                }
+                                
+                                else 
+                                {
+                                    printf("%s remote thread failed  %ld\n", e, GetLastError());
+                                }
+                            }
+
+                            CloseHandle(hprocess);
+
+                            if (Test) 
+                            {
+                                exit(0); 
+                            }
+                        }
+                    }
                 }
 
                 SetCursorPos(ImVec2(450.0f, 400.0f));
                 if (Button("Quit", ImVec2(200.0f, 50.0f))) // Name and Resize The Button
                 {
-                    // Do something
+                    abort();
                 }
                 
                 End();
@@ -313,6 +345,36 @@ public:
         if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
     }
 
+    DWORD GetProcIdByName(const TCHAR* procName) 
+    {
+        HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (hSnap == INVALID_HANDLE_VALUE) 
+        {
+            return 10;
+        }
+            
+        PROCESSENTRY32W pe32;
+
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+
+        if (Process32First(hSnap, &pe32))
+        {
+            do 
+            {
+                if (_tcscmp(pe32.szExeFile, procName) == 0)
+                {
+                    CloseHandle(hSnap);
+                    return pe32.th32ProcessID;
+                }
+            } 
+            while (Process32Next(hSnap, &pe32));
+        }
+        CloseHandle(hSnap);
+        return 0;
+    }
+
+    
+
     void CreateRenderTarget()
     {
         ID3D11Texture2D* pBackBuffer;
@@ -328,6 +390,9 @@ public:
 
 private:
     
+    vector<string> processNames;
+    int selectedIndex = -1;
+
     static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -356,17 +421,13 @@ public:
 
     int run()
     {
-        Window();
-        CleanupDeviceD3D();
-        CreateRenderTarget();
-        CleanupRenderTarget();
-
+        window();
         return 0;
     }
 };
 
 int main()
 {
-    FrontEnd frontend;
-    return frontend.run();
+    Injector Injector;
+    return Injector.run();
 }
