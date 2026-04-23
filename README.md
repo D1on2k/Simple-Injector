@@ -1,29 +1,68 @@
-# DInjector 
+## DInjector
 
-A process Injector built with ImGui(dx3d11) Win32 API and C++17.
+DInjector is a simple DLL injector for Windows (x86/x64), built with C++17, WinAPI, and ImGui (DX11).  
+It uses the standard `LoadLibraryW` method with a clean UI instead of console input.
 
-# Features
-- Dx3d11 Backend: Uses hardware acceleration to prevent UI freezing during injection.
-- Instant PID Lookup: Trys to detect process while you type.
-- Native File Explorer: Uses Windows Explorer to make DLL selection easier.
-- Auto Close Checkbox: It has a checkbox where it auto closes after injection.
-- Static Build: It's optimized for portability with minimal external dependencies.
+<img src="https://img.shields.io/badge/Download-v1.5-D5006D?style=for-the-badge&logo=github"> <img src="https://img.shields.io/badge/platform-Windows-D5006D?style=for-the-badge">  <img src="https://img.shields.io/github/license/D1on2k/DInjector?style=for-the-badge&color=D5006D"> <img src="https://img.shields.io/badge/C%2B%2B-17-D5006D?style=for-the-badge">
 
-[Screenshot/Preview]
-<img width="780" height="587" alt="image" src="https://github.com/user-attachments/assets/b3400318-6ff4-4f84-b86a-0253b476c7eb" />
+---
 
-# How To Build 
-Just Paste The ImGui Foldier In Your Foldier And Compile With: 
-```bash
-g++ -std=c++17 -O2 -DUNICODE -D_UNICODE -I. -IImGui -IImGui/backends Injector.cpp ImGui/imgui.cpp ImGui/imgui_draw.cpp ImGui/imgui_widgets.cpp ImGui/imgui_tables.cpp ImGui/backends/imgui_impl_win32.cpp ImGui/backends/imgui_impl_dx11.cpp -ld3d11 -ld3dcompiler -lgdi32 -ldwmapi -luser32 -static -lcomdlg32 -o DInjector.exe
-```
+## Features
 
-# How to Use
-- Process: Enter the name of the target executable (e.g., notepad.exe).
-- DLL: Click Browse to select your .dll file.
-- Inject: Click Inject to finalize the process.
+- ImGui + DirectX 11 interface (smooth, with no freezing issues)
+- Real-time process lookup (`CreateToolhelp32Snapshot`)
+- DLL selection using Windows file dialog
+- Injection via `CreateRemoteThread` + `LoadLibraryW`
+- Unicode path support
+- Optional auto-close after injection
+- Static build (portable)
 
-# Disclaimer
-> This tool is provided **for educational purposes only**.
-> By using this code, **you take full responsibility for how it is used**.
-> **The developer is not responsible for any misuse**, legal consequences or damages.
+---
+
+## Usage
+
+Run: `DInjector.exe`
+
+Steps:
+- Enter the target process name (e.g. `notepad.exe`)
+- Click **Browse** and select your DLL
+- Press **Inject**
+
+---
+
+## Issues / Bugs
+
+If something isn’t working, check:
+
+- DLL path is valid  
+- Architecture matches (x86 ↔ x64)  
+- Run as Administrator  
+- Antivirus not blocking it  
+- Target process allows access  
+
+If you find a real bug, open an issue with:
+- what you tried  
+- target process  
+- any error output  
+
+---
+
+## Contributing
+
+Pull requests are welcome.
+
+Ideas for improvements:
+- better error handling / UI feedback  
+- manual mapping instead of `LoadLibrary`  
+- process list dropdown instead of typing  
+- proper logging instead of `printf`  
+
+Keep it clean and readable.
+
+---
+
+## Disclaimer
+
+> This tool is provided **for educational purposes only**.  
+> By using this code, **you take full responsibility** for how it is used.  
+> The developer is **not responsible** for any misuse, legal consequences or damages.
