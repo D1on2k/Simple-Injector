@@ -3,7 +3,7 @@
 DInjector is a simple DLL injector for Windows (x86/x64), built with C++17, WinAPI, and ImGui (DX11).  
 It uses the standard `LoadLibraryW` method with a clean UI instead of console input.
 
-<img src="https://img.shields.io/badge/Download-v1.5-D5006D?style=for-the-badge&logo=github"> <img src="https://img.shields.io/badge/platform-Windows-D5006D?style=for-the-badge">  <img src="https://img.shields.io/github/license/D1on2k/DInjector?style=for-the-badge&color=D5006D"> <img src="https://img.shields.io/badge/C%2B%2B-17-D5006D?style=for-the-badge">
+[<img src="https://img.shields.io/badge/Download-v1.5-D5006D?style=for-the-badge&logo=github">](https://github.com/D1on2k/DInjector/releases/tag/Injector1.5) <img src="https://img.shields.io/badge/platform-Windows-D5006D?style=for-the-badge"> <img src="https://img.shields.io/github/license/D1on2k/DInjector?style=for-the-badge&color=D5006D"> <img src="https://img.shields.io/badge/C%2B%2B-17-D5006D?style=for-the-badge">
 
 ---
 
