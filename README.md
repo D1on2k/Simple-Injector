@@ -27,7 +27,8 @@ It uses the standard `LoadLibraryW` method with a clean UI instead of console in
 
 ## Usage
 
-Run: `DInjector.exe`
+Run: `DLInjector.exe` For Loud Usage
+Run: `DSInjector.exe` For Stealth Usage
 
 Steps:
 - Enter the target process name (e.g. `notepad.exe`)
