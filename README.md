@@ -69,6 +69,11 @@ Keep it clean and readable.
 
 ---
 
+[Screeshot/Preview]
+<img width="782" height="582" alt="image" src="https://github.com/user-attachments/assets/5102b665-0606-4c7d-bcaa-5b7c3fc4fddb" />
+
+---
+
 ## Disclaimer
 
 > This tool is provided **for educational purposes only**.  
